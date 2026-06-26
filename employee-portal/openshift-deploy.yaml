@@ -1,5 +1,9 @@
 # ── OpenShift Deployment Manifest ───────────────────────────────────
-# Apply with: oc apply -f openshift-deploy.yaml
+# Copy this file to openshift-deploy.local.yaml and fill in your real
+# values before applying. openshift-deploy.local.yaml is gitignored
+# and will never be committed.
+#
+# Apply with: oc apply -f openshift-deploy.local.yaml
 # ─────────────────────────────────────────────────────────────────────
 
 # 1. Project (namespace)
@@ -61,7 +65,6 @@ spec:
           image: YOUR_REGISTRY/employee-portal:latest
           ports:
             - containerPort: 8080
-          # Inject config from ConfigMap
           envFrom:
             - configMapRef:
                 name: portal-config

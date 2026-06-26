@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Nexus Corp — Identity Provisioning</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-icon">⬡</span>
+        <span class="brand-name">NEXUS CORP <span class="brand-sub">Identity Provisioning</span></span>
+      </div>
+      <div class="badge">
+        <span class="dot"></span>
+        Writes to <code>employees.json</code> · Terraform-managed
+      </div>
+    </header>
+
+    <% if (message) { %>
+      <div class="flash flash-ok"><%= message %></div>
+    <% } %>
+    <% if (error) { %>
+      <div class="flash flash-err"><%= error %></div>
+    <% } %>
+
+    <section class="panel">
+      <h2 class="panel-title">Add Employee</h2>
+      <form action="/employees/add" method="POST" class="form-row">
+        <input type="text" name="first_name" placeholder="First name" required />
+        <input type="text" name="last_name" placeholder="Last name" required />
+        <select name="department" required>
+          <option value="" disabled selected>Department</option>
+          <% departments.forEach(function(d) { %>
+            <option value="<%= d %>"><%= d %></option>
+          <% }) %>
+        </select>
+        <button type="submit" class="btn btn-primary">+ Add</button>
+      </form>
+      <p class="hint">This writes the new employee to <code>employees.json</code> with <code>status: "active"</code>. Run <code>terraform apply</code> to provision them in Entra ID.</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header-row">
+        <h2 class="panel-title">Current Employees</h2>
+        <span class="count-pill"><%= employees.length %></span>
+      </div>
+
+      <table class="emp-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Department</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (employees.length === 0) { %>
+            <tr><td colspan="4" class="empty-row">No employees in employees.json yet.</td></tr>
+          <% } %>
+          <% employees.forEach(function(e) { %>
+            <tr class="<%= e.status === 'disabled' ? 'row-disabled' : '' %>">
+              <td class="emp-name"><%= e.first_name %> <%= e.last_name %></td>
+              <td><span class="dept-pill dept-<%= e.department.toLowerCase() %>"><%= e.department %></span></td>
+              <td>
+                <span class="status-pill status-<%= e.status %>"><%= e.status %></span>
+              </td>
+              <td class="actions-cell">
+                <% if (e.status === 'active') { %>
+                  <form action="/employees/offboard" method="POST" class="inline-form">
+                    <input type="hidden" name="first_name" value="<%= e.first_name %>" />
+                    <input type="hidden" name="last_name" value="<%= e.last_name %>" />
+                    <button type="submit" class="btn btn-danger" onclick="return confirm('Offboard <%= e.first_name %> <%= e.last_name %>?')">Offboard</button>
+                  </form>
+                <% } else { %>
+                  <form action="/employees/reactivate" method="POST" class="inline-form">
+                    <input type="hidden" name="first_name" value="<%= e.first_name %>" />
+                    <input type="hidden" name="last_name" value="<%= e.last_name %>" />
+                    <button type="submit" class="btn btn-secondary">Reactivate</button>
+                  </form>
+                <% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </section>
+
+    <footer class="footnote">
+      This tool edits a JSON file consumed by Terraform. It does not call Azure directly —
+      changes take effect only after <code>terraform plan</code> / <code>terraform apply</code> is run.
+    </footer>
+  </div>
+</body>
+</html>

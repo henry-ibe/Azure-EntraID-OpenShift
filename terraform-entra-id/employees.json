@@ -1,0 +1,20 @@
+[
+  {
+    "first_name": "Jordan",
+    "last_name": "Finance",
+    "department": "HR",
+    "status": "active"
+  },
+  {
+    "first_name": "Casey",
+    "last_name": "Support",
+    "department": "IT",
+    "status": "active"
+  },
+  {
+    "first_name": "Corey",
+    "last_name": "Booker",
+    "department": "ENGINEERING",
+    "status": "active"
+  }
+]
