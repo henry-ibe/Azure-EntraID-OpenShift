@@ -1,151 +1,134 @@
 # Nexus Corp Employee Portal
-> React + Azure Entra ID + OpenShift · Portfolio Project
 
-A production-grade employee portal demonstrating **OpenShift deployment** with **Azure Active Directory authentication** via MSAL.js and the Microsoft Graph API.
+> React + MSAL.js + Azure Entra ID + OpenShift — RBAC-routed department dashboards
+
+The frontend layer of the [Azure-EntraID-OpenShift](https://github.com/henry-ibe/Azure-EntraID-OpenShift) project. This is a React single-page application that authenticates employees via Microsoft Entra ID and routes each user to a department-specific dashboard based on the security group claims in their signed ID token.
 
 ---
 
-## Architecture
+## How It Works
 
 ```
-User Browser
+User hits the app
     ↓
-OpenShift Route (HTTPS/TLS)
+LoginPage.js — "Sign in with Microsoft" gate
     ↓
-OpenShift Service → Pod (React + nginx)
-    ↓  [login click]
-Azure Entra ID (Microsoft login)
-    ↓  [OAuth2 redirect back]
-Microsoft Graph API → Real user profile
+Microsoft's hosted login page (app never sees credentials)
     ↓
-Dashboard with live name, email, title, department
+Azure returns a signed ID token with a groups claim
+    ↓
+RouteGuard.js — reads group Object IDs from the token
+    ↓
+rbacConfig.js — maps each Object ID to a department
+    ↓
+DashboardShell.js — renders the matching department view
+    (HR / IT / Engineering / Admin)
+    ↓
+No matching group? → AccessRestricted.js
 ```
 
----
-
-## Phase 1 — Azure Setup
-
-1. Go to **portal.azure.com** → Azure Active Directory → App Registrations → **New Registration**
-2. Name: `employee-portal`
-3. Supported account types: **Single tenant**
-4. Redirect URI: `http://localhost:3000` (add your OpenShift route URL later)
-5. After creation, note:
-   - **Application (client) ID** → `REACT_APP_AZURE_CLIENT_ID`
-   - **Directory (tenant) ID** → `REACT_APP_AZURE_TENANT_ID`
-6. Go to **Certificates & secrets** → New client secret → copy value → `REACT_APP_AZURE_CLIENT_SECRET`
-7. Go to **API permissions** → Add `User.Read` (Microsoft Graph) → Grant admin consent
+The app never calls an API to determine a user's role. Authorization data travels inside the authentication token itself — the application reads what the signed token says and trusts the answer because it trusts Azure AD as the issuer.
 
 ---
 
-## Phase 2 — Local Development
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/authConfig.js` | MSAL configuration — Client ID, Tenant ID, redirect URI, scopes |
+| `src/rbacConfig.js` | Maps group Object IDs → department labels, applies priority ordering (Admin > HR > IT > Engineering) |
+| `src/components/LoginPage.js` | Login gate with "Sign in with Microsoft" action |
+| `src/components/RouteGuard.js` | Reads `idTokenClaims.groups`, resolves department, renders the correct dashboard or AccessRestricted |
+| `src/components/AccessRestricted.js` | Explicit "you authenticated but you're not authorized" view |
+| `src/components/dashboards/DashboardShell.js` | Shared layout shell — sidebar, header, navigation |
+| `src/components/dashboards/HRDashboard.js` | HR view — workforce overview, PTO requests, onboarding |
+| `src/components/dashboards/ITDashboard.js` | IT view — ticket queue, system status, asset inventory |
+| `src/components/dashboards/EngineeringDashboard.js` | Engineering view — sprint board, deployments, on-call |
+| `src/components/dashboards/AdminDashboard.js` | Admin view — cross-department summary with elevated access |
+
+---
+
+## Local Development
 
 ```bash
-# Clone and install
-git clone https://github.com/YOUR_USERNAME/employee-portal
 cd employee-portal
-npm install --legacy-peer-deps
-
-# Configure environment
 cp .env.example .env
-# Fill in your Azure values in .env
-
-# Run locally
-npm start
-# → http://localhost:3000
 ```
+
+Edit `.env` with your Azure values:
+
+```
+REACT_APP_AZURE_CLIENT_ID=<your employee-portal Client ID>
+REACT_APP_AZURE_TENANT_ID=<your Tenant ID>
+REACT_APP_REDIRECT_URI=http://localhost:3000
+```
+
+Update `src/rbacConfig.js` with your four group Object IDs.
+
+```bash
+npm install --legacy-peer-deps
+HTTPS=true npm start
+```
+
+HTTPS is required — MSAL will throw a `crypto_nonexistent` error on plain HTTP.
 
 ---
 
-## Phase 3 — Docker Build
+## Docker Build
+
+Multi-stage build: `node:18-alpine` compiles the React app, then `nginx:alpine` serves the static bundle. The container runs as non-root (UID 1001) for OpenShift compatibility.
 
 ```bash
-# Build the image
 docker build -t employee-portal:latest .
-
-# Test locally
-docker run -p 8080:8080 \
-  -e REACT_APP_AZURE_CLIENT_ID=your-client-id \
-  -e REACT_APP_AZURE_TENANT_ID=your-tenant-id \
-  -e REACT_APP_REDIRECT_URI=http://localhost:8080 \
-  employee-portal:latest
-
-# Push to registry
-docker tag employee-portal:latest quay.io/YOUR_USERNAME/employee-portal:latest
-docker push quay.io/YOUR_USERNAME/employee-portal:latest
+docker tag employee-portal:latest docker.io/<your-dockerhub-username>/employee-portal:latest
+docker push docker.io/<your-dockerhub-username>/employee-portal:latest
 ```
+
+**Important:** `REACT_APP_*` environment variables are baked into the JavaScript bundle at build time by Create React App. Passing different values via `docker run -e` or a Kubernetes ConfigMap after the build has no effect. If the redirect URI needs to change for a different environment, rebuild the image.
 
 ---
 
-## Phase 4 — OpenShift Deployment
+## OpenShift Deployment
 
 ```bash
-# Login to OpenShift
-oc login --token=YOUR_TOKEN --server=YOUR_SERVER
-
-# Create project
-oc new-project employee-portal
-
-# Edit openshift-deploy.yaml:
-# - Replace YOUR_REGISTRY with your image registry
-# - Replace YOUR_TENANT_ID, YOUR_CLIENT_ID with real values
-# - Replace YOUR_CLUSTER_DOMAIN with your OpenShift cluster domain
-
-# Deploy everything
-oc apply -f openshift-deploy.yaml
-
-# Get your live route URL
-oc get route employee-portal -n employee-portal
-
-# Watch pods come up
-oc get pods -n employee-portal -w
+cp openshift-deploy.yaml openshift-deploy.local.yaml
 ```
 
----
+Edit `openshift-deploy.local.yaml` — replace all `YOUR_*` placeholders with real values. This file is `.gitignore`d and will never be committed.
 
-## Phase 5 — Wire Azure Redirect URI
+```bash
+oc apply -f openshift-deploy.local.yaml
+oc get pods -n employee-portal
+oc get route employee-portal -n employee-portal
+```
 
-1. Go back to Azure Portal → your App Registration
-2. **Authentication** → Add redirect URI
-3. Add: `https://employee-portal.apps.YOUR_CLUSTER_DOMAIN`
-4. Save — authentication now works on OpenShift
-
----
-
-## What the Video Shows
-
-| Step | What happens |
-|------|-------------|
-| 1 | Hit the OpenShift route URL → Login gate appears |
-| 2 | Click "Sign in with Microsoft" |
-| 3 | Microsoft Azure login page (real Microsoft UI) |
-| 4 | Enter Azure AD credentials |
-| 5 | Redirected back to app |
-| 6 | Dashboard loads with **real name, email, title, department** from Azure token |
+Add the Route URL as a redirect URI in the Entra ID App Registration (SPA platform). The redirect URI in `.env` at build time must match the Route URL — if it doesn't, rebuild and redeploy.
 
 ---
 
-## OpenShift Resources Created
+## OpenShift Resources
 
 | Resource | Name | Purpose |
 |----------|------|---------|
 | Project | `employee-portal` | Namespace |
 | ConfigMap | `portal-config` | Tenant ID, redirect URI |
-| Secret | `portal-secret` | Client ID (sensitive) |
-| Deployment | `employee-portal` | Runs the React app |
-| Service | `employee-portal` | Internal routing |
-| Route | `employee-portal` | HTTPS external access |
+| Secret | `portal-secret` | Client ID, client secret |
+| Deployment | `employee-portal` | Runs the React + nginx pod |
+| Service | `employee-portal` | Internal cluster routing |
+| Route | `employee-portal` | HTTPS external access (TLS edge termination) |
 
 ---
 
-## Tech Stack
+## Common Issues
 
-- **React 18** + MSAL.js v3 (Microsoft Authentication Library)
-- **Microsoft Graph API** — pulls real user profile
-- **nginx** — serves the built React app
-- **Docker** — multi-stage build (node → nginx)
-- **OpenShift** — Deployment, Service, Route, ConfigMap, Secret
-- **Azure Entra ID** — OAuth2 / OpenID Connect
+**MSAL crypto error on localhost** — You must use HTTPS. Run with `HTTPS=true npm start` and accept the self-signed cert warning.
+
+**`npm audit fix --force` breaks everything** — Do not run this. It downgrades `react-scripts` to `0.0.0` and corrupts the project. If it happens: delete `node_modules` and `package-lock.json`, restore `react-scripts` to `5.0.1` in `package.json`, reinstall.
+
+**ajv error on older Node versions** — Run `npm install ajv@^8.0.0 --legacy-peer-deps` to fix the `ajv/dist/compile/codegen` error.
+
+**Redirect goes to wrong URL after deploying to OpenShift** — The redirect URI was wrong at build time. Fix `.env`, rebuild the Docker image, push, and `oc rollout restart`.
 
 ---
 
-*Built by Henry Okafor · Portfolio Project · 2026*
+*Part of the [Azure-EntraID-OpenShift](https://github.com/henry-ibe/Azure-EntraID-OpenShift) project — see the root README for the full six-layer architecture.*
