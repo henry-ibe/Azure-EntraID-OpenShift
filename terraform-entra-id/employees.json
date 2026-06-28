@@ -16,5 +16,11 @@
     "last_name": "Booker",
     "department": "ENGINEERING",
     "status": "active"
+  },
+  {
+    "first_name": "Taylor",
+    "last_name": "pipeline",
+    "department": "ADMIN",
+    "status": "active"
   }
 ]
