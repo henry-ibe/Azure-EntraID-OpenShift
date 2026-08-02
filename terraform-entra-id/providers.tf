@@ -1,4 +1,11 @@
 terraform {
+  cloud {
+    organization = "nexius-corp-demo"
+    workspaces {
+      name = "Entra-id-employee-provisioning"
+    }
+  }
+
   required_providers {
     azuread = {
       source  = "hashicorp/azuread"
@@ -10,7 +17,6 @@ terraform {
     }
   }
 }
-
 provider "azuread" {
   client_id     = var.client_id
   tenant_id     = var.tenant_id
