@@ -34,5 +34,11 @@
     "last_name": "Koker",
     "department": "IT",
     "status": "active"
+  },
+  {
+    "first_name": "henry",
+    "last_name": "Adobe",
+    "department": "ENGINEERING",
+    "status": "active"
   }
 ]
