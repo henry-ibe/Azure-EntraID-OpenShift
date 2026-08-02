@@ -22,5 +22,11 @@
     "last_name": "pipeline",
     "department": "ADMIN",
     "status": "active"
+  },
+  {
+    "first_name": "Alice",
+    "last_name": "Okita",
+    "department": "HR",
+    "status": "active"
   }
 ]
