@@ -28,5 +28,11 @@
     "last_name": "Okita",
     "department": "HR",
     "status": "active"
+  },
+  {
+    "first_name": "Jessy",
+    "last_name": "Koker",
+    "department": "IT",
+    "status": "active"
   }
 ]
